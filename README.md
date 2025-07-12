@@ -19,7 +19,7 @@ Built with Kotlin + Android Studio, this app is purely for **educational and tes
 
 1. **Clone the repo**  
    ```bash
-   git clone git@github.com:un1xr00t/RokuSpammer.git
+   git clone https://github.com/un1xr00t/RokuSpammer.git
    cd RokuSpammer
    ```
 
