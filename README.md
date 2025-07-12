@@ -1,17 +1,20 @@
 # 📺 RokuSpammer
 
-A simple Android app that sends randomized keypress commands to Roku devices on your local network.
+A simple Android app that sends keypress commands to Roku devices on your local network.
 
-Built with Kotlin + Android Studio, this app is purely for **educational and testing** purposes.
+Built in **Kotlin + Android Studio**, the app is designed for educational testing of Roku devices’ remote interfaces.
 
 ---
 
 ## 🚀 Features
 
-- 🔁 Chaos Mode: sends randomized Roku remote commands (Home, Up, Down, Select, etc.)
-- 🌐 Manual IP entry
-- 🔍 (Coming Soon) Network scanner to find Roku devices automatically
-- 📱 Works on real Android devices (emulator won't affect real TVs)
+- 🔁 **Chaos Mode**: Automatically spams all common remote commands (Volume, Home, Arrows, etc.)
+- 🌐 **Manual IP entry** or dropdown selection from scanned devices
+- 📡 **Local network Roku scanner** — finds all Roku devices on your subnet
+- 🎛️ **Attack Method dropdown** — select a specific command or activate "Chaos"
+- ⏱️ **Delay input** — throttle how fast commands are sent (in milliseconds)
+- 📜 **Real-time log output** with scroll and auto-scroll to bottom
+- 🎨 Styled UI with transparent background image, neon green accents, and themed spinners
 
 ---
 
@@ -24,50 +27,67 @@ Built with Kotlin + Android Studio, this app is purely for **educational and tes
    ```
 
 2. **Open in Android Studio**  
-   - Run on a physical device with Developer Mode + USB Debugging enabled
+   - Connect a real Android device with USB debugging enabled
 
 3. **Build APK**  
-   `Build > Build APK(s)` in Android Studio  
-   The `.apk` will be in `app/build/outputs/apk/debug/`
+   `Build > Build APK(s)`  
+   Output APK is located at:  
+   `app/build/outputs/apk/debug/app-debug.apk`
 
 ---
 
 ## 📦 Download APK
 
 👉 [Download Latest APK](https://github.com/un1xr00t/RokuSpammer/releases/latest/download/app-debug.apk)  
-*(Link will work after you publish your first GitHub release)*
+*(Will be live after the first GitHub release)*
 
 ---
 
-## 📸 UI
+## 📸 UI Walkthrough
 
-- 🔲 Enter your Roku’s IP address (e.g. `192.168.0.106`)
-- ▶️ Tap **Start Chaos** to begin sending random commands
-- ⏹️ Tap **Stop** to halt the spam
+- 🖥️ **Enter IP** or tap **Scan** to find Rokus on your local network
+- 🧩 **Choose an attack method** from the dropdown (e.g., `VolumeUp`, `Home`, or `Chaos`)
+- ⏱️ Set a custom **delay between attacks** (ms)
+- ▶️ Tap **Start Pwning** to begin
+- ⏹️ Tap **Stop** to halt
+
+### 🧾 Logs
+All actions are logged in real-time below the controls.  
+The log area supports auto-scrolling and selectable/copyable text.
+
+---
+
+## 🎨 UI Customizations
+
+- ✅ Transparent hacker-style background image
+- ✅ Glow-effect green buttons
+- ✅ Styled spinners with dark backgrounds and green text
+- ✅ Clean vertical layout with padding and margin tweaks
 
 ---
 
 ## 🔐 Disclaimer
 
-This tool is meant for **personal educational use only**.  
-Do not use it on devices you do not own or without permission.  
-I’m not responsible for how it’s used.
+This app is intended **only for testing and educational purposes**.  
+Do **not** use it on Roku devices you don’t own or without permission.  
+The developer is **not responsible** for misuse.
 
 ---
 
 ## ❤️ Credits
 
-- Developed by [@un1xr00t](https://github.com/un1xr00t)
-- Uses:
-  - `okhttp3` for HTTP requests
-  - `kotlinx.coroutines` for async tasking
+- Created by [@un1xr00t](https://github.com/un1xr00t)
+- Powered by:
+  - `kotlinx.coroutines` — async task execution
+  - Android SDK + XML layouts
+  - `HttpURLConnection` for native HTTP requests
 
 ---
 
 ## 🧪 Coming Soon
 
-- 📡 Auto-scan network for Roku devices
-- 🧩 Add mode toggle for specific command patterns
-- 📊 Command history viewer (log)
+- 📊 Command usage stats or log export
+- 🌈 Themed color mode switch (dark mode, matrix, etc.)
+- 🛠 Chaos intensity dial / command set customization
 
 ---
