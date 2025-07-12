@@ -1,27 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="24dp">
+    android:layout_height="match_parent">
 
-    <EditText
-        android:id="@+id/ipField"
+    <!-- Background Image -->
+    <ImageView
+        android:id="@+id/background"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Roku IP (e.g. 192.168.0.10)" />
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/hacker_background"
+        android:alpha="0.15" />
 
-    <Button
-        android:id="@+id/startButton"
+    <!-- Overlay UI -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Start Chaos"
-        android:layout_marginTop="16dp" />
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center"
+        android:background="@android:color/transparent">
 
-    <Button
-        android:id="@+id/stopButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Stop"
-        android:layout_marginTop="8dp" />
-</LinearLayout>
+        <EditText
+            android:id="@+id/ipField"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Roku IP (e.g. 192.168.0.10)"
+            android:textColor="#00FF00"
+            android:textColorHighlight="#88FF88"
+            android:background="@android:drawable/editbox_background" />
+
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Start Chaos"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/glow_button"
+            android:textColor="#00FF00" />
+
+        <Button
+            android:id="@+id/stopButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Stop"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/glow_button"
+            android:textColor="#00FF00" />
+    </LinearLayout>
+</RelativeLayout>
