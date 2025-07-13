@@ -38,7 +38,7 @@ Built in **Kotlin + Android Studio**, the app is designed for educational testin
 
 ## 📦 Download APK
 
-👉 [Download Latest APK](https://github.com/un1xr00t/RokuSpammer/releases/latest/download/app-debug.apk)  
+👉 [Download Latest APK](https://github.com/un1xr00t/RokuSpammer/releases)
 *(Will be live after the first GitHub release)*
 
 ---
