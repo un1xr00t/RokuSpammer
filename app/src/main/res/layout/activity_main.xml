@@ -1,140 +1,156 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#CC121212">
 
-    <RelativeLayout
+    <!-- Background Image -->
+    <ImageView
+        android:id="@+id/background"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:src="@drawable/hacker_background"
+        android:alpha="0.15" />
 
-        <!-- Background Image -->
-        <ImageView
-            android:id="@+id/background"
+    <!-- UI Content -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:background="@android:color/transparent">
+
+        <!-- Enter IP Label -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enter IP:"
+            android:textColor="#00FF88"
+            android:textSize="16sp"
+            android:layout_marginBottom="4dp"
+            android:fontFamily="monospace" />
+
+        <!-- Manual IP Entry -->
+        <EditText
+            android:id="@+id/ipField"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="centerCrop"
-            android:src="@drawable/hacker_background"
-            android:alpha="0.15" />
+            android:layout_height="wrap_content"
+            android:hint="Roku IP (e.g. 192.168.0.10)"
+            android:textColor="#00FF00"
+            android:textColorHint="#88FF88"
+            android:backgroundTint="#00FF88"
+            android:fontFamily="monospace"
+            android:inputType="text" />
 
-        <!-- UI Content -->
+        <TextView
+            android:id="@+id/deviceInfoText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Idle"
+            android:textColor="#00FF88"
+            android:textSize="14sp"
+            android:fontFamily="monospace"
+            android:gravity="center_horizontal"
+            android:layout_marginTop="8dp" />
+
+        <!-- Device Scanner Dropdown + Scan Button -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="24dp"
-            android:background="@android:color/transparent">
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp">
 
-            <!-- Enter IP Label -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Enter IP:"
-                android:textColor="#000000"
-                android:textSize="16sp"
-                android:layout_marginBottom="4dp" />
-
-            <!-- Manual IP Entry -->
-            <EditText
-                android:id="@+id/ipField"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Roku IP (e.g. 192.168.0.10)"
-                android:textColor="#00FF00"
-                android:textColorHint="#88FF88"
-                android:background="@android:drawable/editbox_background" />
-
-            <!-- Device Scanner Dropdown + Scan Button -->
-            <!-- Device Scanner Dropdown + Scan Button -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="16dp">
-
-                <Spinner
-                    android:id="@+id/deviceSpinner"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:popupBackground="@android:color/background_dark" />
-
-
-                <Button
-                    android:id="@+id/scanButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Scan"
-                    android:background="@drawable/glow_button"
-                    android:textColor="#00FF00" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/attackLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Attack Method:"
-                android:textColor="#000000"
-                android:textSize="16sp"
-                android:layout_marginTop="16dp" />
-
-            <!-- Command Type -->
             <Spinner
-                android:id="@+id/commandSpinner"
-                android:layout_width="match_parent"
+                android:id="@+id/deviceSpinner"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/spinner_background"
-                android:popupBackground="@android:color/background_dark" />
+                android:layout_weight="1"
+                android:popupBackground="@android:color/background_dark"
+                android:backgroundTint="#00FF88" />
 
-            <!-- Delay Input -->
-            <EditText
-                android:id="@+id/delayInput"
-                android:layout_width="match_parent"
+            <Button
+                android:id="@+id/scanButton"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:hint="Delay in ms (e.g. 500)"
-                android:inputType="number"
+                android:text="Scan"
+                android:background="@drawable/glow_button"
                 android:textColor="#00FF00"
-                android:textColorHint="#88FF88"
-                android:background="@android:drawable/editbox_background"
-                android:layout_marginTop="16dp" />
-
-            <!-- Action Buttons -->
-            <Button
-                android:id="@+id/startButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Start Pwning"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/glow_button"
-                android:textColor="#00FF00" />
-
-            <Button
-                android:id="@+id/stopButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Stop"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/glow_button"
-                android:textColor="#00FF00" />
-
-            <!-- Scrollable Log Output -->
-            <ScrollView
-                android:id="@+id/logScroll"
-                android:layout_width="match_parent"
-                android:layout_height="200dp"
-                android:layout_marginTop="16dp"
-                android:background="#000000">
-
-                <TextView
-                    android:id="@+id/logOutput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Logs will appear here..."
-                    android:textColor="#00FF00"
-                    android:padding="8dp"
-                    android:textIsSelectable="true" />
-            </ScrollView>
-
+                android:layout_marginStart="8dp" />
         </LinearLayout>
-    </RelativeLayout>
-</ScrollView>
+
+        <!-- Attack Label -->
+        <TextView
+            android:id="@+id/attackLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Attack Method:"
+            android:textColor="#00FF88"
+            android:textSize="16sp"
+            android:layout_marginTop="16dp"
+            android:fontFamily="monospace" />
+
+        <!-- Command Spinner -->
+        <Spinner
+            android:id="@+id/commandSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/spinner_background"
+            android:popupBackground="@android:color/background_dark"
+            android:backgroundTint="#00FF88" />
+
+        <!-- Delay Input -->
+        <EditText
+            android:id="@+id/delayInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Delay in ms (e.g. 500)"
+            android:inputType="number"
+            android:textColor="#00FF00"
+            android:textColorHint="#88FF88"
+            android:backgroundTint="#00FF88"
+            android:layout_marginTop="16dp"
+            android:fontFamily="monospace" />
+
+        <!-- Start Button -->
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Start Pwning"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/glow_button"
+            android:textColor="#00FF00" />
+
+        <!-- Stop Button -->
+        <Button
+            android:id="@+id/stopButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Stop"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/glow_button"
+            android:textColor="#00FF00" />
+
+        <!-- Scrollable Log Output -->
+        <ScrollView
+            android:id="@+id/logScroll"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:layout_marginTop="16dp"
+            android:background="#000000">
+
+            <TextView
+                android:id="@+id/logOutput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Logs will appear here..."
+                android:textColor="#00FF00"
+                android:padding="8dp"
+                android:fontFamily="monospace"
+                android:textIsSelectable="true" />
+        </ScrollView>
+
+    </LinearLayout>
+</RelativeLayout>
