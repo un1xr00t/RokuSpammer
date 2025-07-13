@@ -255,8 +255,8 @@ class MainActivity : AppCompatActivity() {
                                 val url = URL("http://$ip:8060/keypress/$cmd")
                                 val conn = url.openConnection() as HttpURLConnection
                                 conn.requestMethod = "POST"
-                                conn.connectTimeout = 500
-                                conn.readTimeout = 500
+                                conn.connectTimeout = 800
+                                conn.readTimeout = 800
                                 conn.doOutput = true
                                 OutputStreamWriter(conn.outputStream).use { it.write("") }
                                 conn.responseCode
