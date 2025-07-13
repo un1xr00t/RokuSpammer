@@ -14,6 +14,8 @@ import android.os.VibrationEffect
 import android.graphics.Color
 import android.view.ViewGroup
 import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.style.ForegroundColorSpan
 
 
 class MainActivity : AppCompatActivity() {
@@ -60,12 +62,12 @@ class MainActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
         commandSpinner.adapter = adapter
 
-
         scanButton.setOnClickListener { scanForRokus() }
 
         startButton.setOnClickListener { startSpamming() }
         stopButton.setOnClickListener { stopSpamming() }
     }
+
     private fun fetchDeviceInfo(ip: String) {
         val url = "http://$ip:8060/query/device-info"
         Thread {
@@ -105,7 +107,6 @@ class MainActivity : AppCompatActivity() {
         val subnet = getLocalSubnet()
         val foundDevices = mutableMapOf<String, String>() // IP → Name
 
-
         log("Scanning $subnet.0/24...")
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -125,7 +126,6 @@ class MainActivity : AppCompatActivity() {
                             foundDevices[ip] = name
                             log("Roku found: $name ($ip)")
                         }
-
                         conn.disconnect()
                     } catch (_: Exception) { }
                 }
@@ -136,16 +136,25 @@ class MainActivity : AppCompatActivity() {
                 if (foundDevices.isEmpty()) {
                     log("No Roku devices found.")
                 } else {
-                    val displayList = foundDevices.map { (ip, name) -> "$name ($ip)" }
+                    val deviceList = foundDevices.map { (ip, name) -> "$name ($ip)" }
+                    val multipleDevices = deviceList.size > 1
+
+                    val displayList = mutableListOf("All Devices (broadcast)")
+                    displayList.addAll(deviceList)
 
                     val adapter = object : ArrayAdapter<String>(
                         this@MainActivity,
                         R.layout.spinner_item,
                         displayList
                     ) {
+                        override fun isEnabled(position: Int): Boolean {
+                            return !(displayList[position].startsWith("All Devices") && !multipleDevices)
+                        }
+
                         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                             val view = super.getView(position, convertView, parent) as TextView
-                            view.setTextColor(Color.parseColor("#00FF00"))
+                            val isDisabled = displayList[position].startsWith("All Devices") && !multipleDevices
+                            view.setTextColor(if (isDisabled) Color.GRAY else Color.parseColor("#00FF00"))
                             view.setBackgroundColor(Color.BLACK)
                             view.textAlignment = View.TEXT_ALIGNMENT_CENTER
                             view.typeface = Typeface.MONOSPACE
@@ -154,7 +163,8 @@ class MainActivity : AppCompatActivity() {
 
                         override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
                             val view = super.getDropDownView(position, convertView, parent) as TextView
-                            view.setTextColor(Color.parseColor("#00FF00"))
+                            val isDisabled = displayList[position].startsWith("All Devices") && !multipleDevices
+                            view.setTextColor(if (isDisabled) Color.GRAY else Color.parseColor("#00FF00"))
                             view.setBackgroundColor(Color.parseColor("#222222"))
                             view.textAlignment = View.TEXT_ALIGNMENT_CENTER
                             view.typeface = Typeface.MONOSPACE
@@ -162,44 +172,59 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
+
                     deviceSpinner.adapter = adapter
-                    deviceSpinner.setSelection(0) // ✅ Auto-select the first detected Roku
+                    deviceSpinner.setSelection(0)
+                    deviceSpinner.setSelection(if (deviceList.size == 1) 1 else 0)
 
-// ✅ Save to SharedPreferences
-                    val firstIp = foundDevices.keys.firstOrNull()
-                    if (firstIp != null) {
+                    // ✅ Save first IP (skip "All Devices")
+                    val firstRealDevice = foundDevices.keys.firstOrNull()
+                    if (firstRealDevice != null) {
                         val sharedPref = getSharedPreferences("roku", MODE_PRIVATE)
-                        sharedPref.edit().putString("lastIp", firstIp).apply()
+                        sharedPref.edit().putString("lastIp", firstRealDevice).apply()
                     }
-
-
                 }
             }
         }
     }
 
     private fun startSpamming() {
-        val targetIp = if (deviceSpinner.selectedItem != null) {
-            val selected = deviceSpinner.selectedItem.toString()
-            // Extract IP from "Name (IP)"
-            Regex("\\((.*?)\\)").find(selected)?.groupValues?.get(1) ?: selected
-        } else {
-            ipField.text.toString()
+        val selectedItem = deviceSpinner.selectedItem?.toString()
+
+        if (selectedItem == null || selectedItem.isBlank()) {
+            Toast.makeText(this, "Please select a Roku device or enter an IP", Toast.LENGTH_SHORT).show()
+            return
         }
 
-        // ✅ Now that targetIp exists, fetch the device info
-        fetchDeviceInfo(targetIp)
+        val targetIps: List<String> =
+            if (selectedItem.startsWith("All Devices")) {
+                (0 until deviceSpinner.adapter.count)
+                    .map { deviceSpinner.adapter.getItem(it).toString() }
+                    .filterNot { it.startsWith("All Devices") }
+                    .mapNotNull { Regex("\\((.*?)\\)").find(it)?.groupValues?.get(1) }
+            } else {
+                listOf(
+                    Regex("\\((.*?)\\)").find(selectedItem)?.groupValues?.get(1)
+                        ?: ipField.text.toString()
+                )
+            }
 
-        if (targetIp.isBlank()) {
+
+        // ✅ Now that targetIp exists, fetch the device info
+        if (targetIps.isEmpty()) {
             Toast.makeText(this, "Please enter or select a Roku IP", Toast.LENGTH_SHORT).show()
             return
         }
+
+        fetchDeviceInfo(targetIps.first())
+
 
         val command = commandSpinner.selectedItem.toString()
         val delay = delayInput.text.toString().toLongOrNull() ?: 300L
         runOnUiThread {
             val selectedDisplay = deviceSpinner.selectedItem?.toString() ?: ipField.text.toString()
-            val deviceName = Regex("^(.*?) \\(").find(selectedDisplay)?.groupValues?.get(1) ?: "Roku"
+            val deviceName =
+                Regex("^(.*?) \\(").find(selectedDisplay)?.groupValues?.get(1) ?: "Roku"
 
             val text = if (command == "Chaos") {
                 "Obliterating: $deviceName"
@@ -225,8 +250,24 @@ class MainActivity : AppCompatActivity() {
             while (isActive) {
                 try {
                     if (command == "Chaos") {
-                        for (cmd in rokuCommands.drop(1)) { // Skip "Chaos"
-                            val url = URL("http://$targetIp:8060/keypress/$cmd")
+                        for (cmd in rokuCommands.drop(1)) {
+                            for (ip in targetIps) {
+                                val url = URL("http://$ip:8060/keypress/$cmd")
+                                val conn = url.openConnection() as HttpURLConnection
+                                conn.requestMethod = "POST"
+                                conn.connectTimeout = 500
+                                conn.readTimeout = 500
+                                conn.doOutput = true
+                                OutputStreamWriter(conn.outputStream).use { it.write("") }
+                                conn.responseCode
+                                conn.disconnect()
+                                log("Chaos: Sent $cmd to $ip")
+                            }
+                            delay(150)
+                        }
+                    } else {
+                        for (ip in targetIps) {
+                            val url = URL("http://$ip:8060/keypress/$command")
                             val conn = url.openConnection() as HttpURLConnection
                             conn.requestMethod = "POST"
                             conn.connectTimeout = 500
@@ -235,33 +276,8 @@ class MainActivity : AppCompatActivity() {
                             OutputStreamWriter(conn.outputStream).use { it.write("") }
                             conn.responseCode
                             conn.disconnect()
-                            log("Chaos: Sent $cmd to $targetIp")
-                            delay(150)
+                            log("Sent $command to $ip")
                         }
-                    } else {
-                        val url = if (command.startsWith("Launch")) {
-                            val channelId = when (command) {
-                                "Launch Netflix" -> "12"
-                                "Launch YouTube" -> "837"
-                                "Launch Hulu" -> "2285"
-                                "Launch Disney+" -> "291097"
-                                "Launch Prime Video" -> "13"
-                                else -> null
-                            }
-                            URL("http://$targetIp:8060/launch/$channelId")
-                        } else {
-                            URL("http://$targetIp:8060/keypress/$command")
-                        }
-
-                        val conn = url.openConnection() as HttpURLConnection
-                        conn.requestMethod = "POST"
-                        conn.connectTimeout = 500
-                        conn.readTimeout = 500
-                        conn.doOutput = true
-                        OutputStreamWriter(conn.outputStream).use { it.write("") }
-                        conn.responseCode
-                        conn.disconnect()
-                        log("Sent $command to $targetIp")
                         delay(delay)
                     }
                 } catch (e: Exception) {
@@ -270,32 +286,51 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-    }
+    }  // ← ✅ CLOSE startSpamming() here
 
-    private fun stopSpamming() {
-        runOnUiThread {
-            startButton.clearAnimation()
-            startButton.text = "START PWNING"
-            findViewById<TextView>(R.id.deviceInfoText).text = "Idle"
-            val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
-            vibrator.cancel()
+        private fun stopSpamming() {
+            runOnUiThread {
+                startButton.clearAnimation()
+                startButton.text = "START PWNING"
+                findViewById<TextView>(R.id.deviceInfoText).text = "Idle"
+                val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+                vibrator.cancel()
+            }
+
+
+            spamJob?.cancel()
+            log("Stopped.")
         }
 
+        private fun log(message: String) {
+            runOnUiThread {
+                val coloredText = SpannableString("$message\n")
+                when {
+                    message.contains("Error", ignoreCase = true) -> {
+                        coloredText.setSpan(ForegroundColorSpan(Color.RED), 0, message.length, 0)
+                    }
 
-        spamJob?.cancel()
-        log("Stopped.")
-    }
+                    message.contains(
+                        "Sent",
+                        ignoreCase = true
+                    ) || message.contains("Roku found") -> {
+                        coloredText.setSpan(ForegroundColorSpan(Color.GREEN), 0, message.length, 0)
+                    }
 
-    private fun log(message: String) {
-        runOnUiThread {
-            val oldText = logOutput.text.toString()
-            val newText = "$oldText\n$message"
-            logOutput.text = newText
+                    message.contains("No Roku") || message.contains(
+                        "Stopped",
+                        ignoreCase = true
+                    ) -> {
+                        coloredText.setSpan(ForegroundColorSpan(Color.YELLOW), 0, message.length, 0)
+                    }
+                }
 
-            val scrollView = findViewById<ScrollView>(R.id.logScroll)
-            scrollView.post {
-                scrollView.fullScroll(View.FOCUS_DOWN)
+                logOutput.append(coloredText)
+
+                val scrollView = findViewById<ScrollView>(R.id.logScroll)
+                scrollView.post {
+                    scrollView.fullScroll(View.FOCUS_DOWN)
+                }
             }
         }
-    }
     }
