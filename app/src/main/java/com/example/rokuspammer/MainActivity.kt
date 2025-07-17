@@ -34,8 +34,13 @@ class MainActivity : AppCompatActivity() {
     private val rokuCommands = listOf(
         "Chaos", // 💥 DDoS mode!
         "VolumeUp", "VolumeDown", "Home", "Back", "Select", "Info", "Up", "Down", "Left", "Right",
-        "Launch Netflix", "Launch YouTube", "Launch Hulu", "Launch Disney+", "Launch Prime Video"
+        "Launch Netflix", "Launch YouTube", "Launch Hulu", "Launch Disney+", "Launch Prime Video",
+        "⚡ Thunder Mode",
+        "🎣 Rick Roll Mode"
     )
+
+
+
 
     private val discoveredDevices = mutableMapOf<String, String>() // IP → Label
 
@@ -405,42 +410,79 @@ class MainActivity : AppCompatActivity() {
 
             while (isActive) {
                 try {
-                    if (command == "Chaos") {
-                        for (cmd in rokuCommands.drop(1)) {
+                    when (command) {
+                        "Chaos" -> {
+                            for (cmd in rokuCommands.drop(1)) {
+                                for (ip in targetIps) {
+                                    val url = URL("http://$ip:8060/keypress/$cmd")
+                                    val conn = url.openConnection() as HttpURLConnection
+                                    conn.requestMethod = "POST"
+                                    conn.connectTimeout = 800
+                                    conn.readTimeout = 800
+                                    conn.doOutput = true
+                                    OutputStreamWriter(conn.outputStream).use { it.write("") }
+                                    conn.responseCode
+                                    conn.disconnect()
+                                    log("Chaos: Sent $cmd to $ip")
+                                }
+                                delay(150)
+                            }
+                        }
+
+                        "⚡ Thunder Mode" -> {
                             for (ip in targetIps) {
-                                val url = URL("http://$ip:8060/keypress/$cmd")
+                                val url = URL("http://$ip:8060/launch/837?contentID=v2AC41dglnM")
                                 val conn = url.openConnection() as HttpURLConnection
                                 conn.requestMethod = "POST"
-                                conn.connectTimeout = 800
-                                conn.readTimeout = 800
+                                conn.connectTimeout = 1000
+                                conn.readTimeout = 1000
                                 conn.doOutput = true
                                 OutputStreamWriter(conn.outputStream).use { it.write("") }
                                 conn.responseCode
                                 conn.disconnect()
-                                log("Chaos: Sent $cmd to $ip")
+                                log("⚡ Thunder Mode: Thunderstruck sent to $ip")
                             }
-                            delay(150)
+                            delay(delay)
                         }
-                    } else {
-                        for (ip in targetIps) {
-                            val url = URL("http://$ip:8060/keypress/$command")
-                            val conn = url.openConnection() as HttpURLConnection
-                            conn.requestMethod = "POST"
-                            conn.connectTimeout = 500
-                            conn.readTimeout = 500
-                            conn.doOutput = true
-                            OutputStreamWriter(conn.outputStream).use { it.write("") }
-                            conn.responseCode
-                            conn.disconnect()
-                            log("Sent $command to $ip")
+
+                        "🎣 Rick Roll Mode" -> {
+                            for (ip in targetIps) {
+                                val url = URL("http://$ip:8060/launch/837?contentID=dQw4w9WgXcQ")
+                                val conn = url.openConnection() as HttpURLConnection
+                                conn.requestMethod = "POST"
+                                conn.connectTimeout = 1000
+                                conn.readTimeout = 1000
+                                conn.doOutput = true
+                                OutputStreamWriter(conn.outputStream).use { it.write("") }
+                                conn.responseCode
+                                conn.disconnect()
+                                log("🎣 Rick Roll Mode: Deployed to $ip")
+                            }
+                            delay(delay)
                         }
-                        delay(delay)
+
+                        else -> {
+                            for (ip in targetIps) {
+                                val url = URL("http://$ip:8060/keypress/$command")
+                                val conn = url.openConnection() as HttpURLConnection
+                                conn.requestMethod = "POST"
+                                conn.connectTimeout = 500
+                                conn.readTimeout = 500
+                                conn.doOutput = true
+                                OutputStreamWriter(conn.outputStream).use { it.write("") }
+                                conn.responseCode
+                                conn.disconnect()
+                                log("Sent $command to $ip")
+                            }
+                            delay(delay)
+                        }
                     }
                 } catch (e: Exception) {
                     log("Error sending: ${e.message}")
                     delay(500)
                 }
             }
+
         }
     }
 
