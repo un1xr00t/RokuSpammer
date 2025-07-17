@@ -22,6 +22,8 @@ It sends remote keypresses over the local network — either manually or automat
 
 - 🔁 **Obliterate Mode** (formerly Chaos) — rapid-fire command sequence to Roku devices
 - 🧠 **Command Spinner** — choose a specific keypress like `Home`, `VolumeUp`, etc.
+- ⚡ **Thunder Mode** — launches YouTube on all selected Rokus and auto-plays *AC/DC – Thunderstruck*
+- 🎣 **Rick Roll Mode** — launches YouTube and plays *Never Gonna Give You Up* to prank all nearby Rokus
 - 📡 **Smart TV Scanner**
   - Manual IP entry ✅
   - Subnet-based Roku scan ✅
