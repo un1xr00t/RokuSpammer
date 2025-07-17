@@ -37,6 +37,8 @@ class MainActivity : AppCompatActivity() {
         "Launch Netflix", "Launch YouTube", "Launch Hulu", "Launch Disney+", "Launch Prime Video"
     )
 
+    private val discoveredDevices = mutableMapOf<String, String>() // IP → Label
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -62,11 +64,103 @@ class MainActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(R.layout.spinner_dropdown_item)
         commandSpinner.adapter = adapter
 
-        scanButton.setOnClickListener { scanForRokus() }
+        scanButton.setOnClickListener {
+            scanForSmartTVs()
+            scanWithSSDP()
+        }
 
         startButton.setOnClickListener { startSpamming() }
         stopButton.setOnClickListener { stopSpamming() }
     }
+
+    private fun scanWithSSDP() {
+        val foundDevices = mutableSetOf<String>()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val multicastAddress = InetAddress.getByName("239.255.255.250")
+                val socket = DatagramSocket()
+                socket.soTimeout = 2000
+
+                val ssdpRequest = """
+                M-SEARCH * HTTP/1.1
+                HOST: 239.255.255.250:1900
+                MAN: "ssdp:discover"
+                MX: 2
+                ST: ssdp:all
+
+            """.trimIndent()
+
+                val packetData = ssdpRequest.toByteArray()
+                val packet = DatagramPacket(packetData, packetData.size, multicastAddress, 1900)
+
+                log("🔍 Broadcasting SSDP discovery...")
+
+                repeat(3) { socket.send(packet) } // send 3x to catch more devices
+
+                val buffer = ByteArray(2048)
+
+                val startTime = System.currentTimeMillis()
+
+                while (System.currentTimeMillis() - startTime < 3000) {
+                    try {
+                        val responsePacket = DatagramPacket(buffer, buffer.size)
+                        socket.receive(responsePacket)
+
+                        val response = String(responsePacket.data, 0, responsePacket.length)
+                        val senderIp = responsePacket.address.hostAddress
+
+                        val server = Regex(
+                            "SERVER: (.*)",
+                            RegexOption.IGNORE_CASE
+                        ).find(response)?.groupValues?.get(1)?.trim()
+                        val st = Regex(
+                            "ST: (.*)",
+                            RegexOption.IGNORE_CASE
+                        ).find(response)?.groupValues?.get(1)?.trim()
+                        val location = Regex(
+                            "LOCATION: (.*)",
+                            RegexOption.IGNORE_CASE
+                        ).find(response)?.groupValues?.get(1)?.trim()
+
+                        val label = when {
+                            server?.contains("roku", true) == true -> "Roku (SSDP)"
+                            server?.contains("lg", true) == true || st?.contains(
+                                "webos",
+                                true
+                            ) == true -> "LG TV (SSDP)"
+
+                            server?.contains("samsung", true) == true || st?.contains(
+                                "samsung",
+                                true
+                            ) == true -> "Samsung TV (SSDP)"
+
+                            else -> "Unknown Device"
+                        }
+
+                        if (senderIp !in discoveredDevices) {
+                            discoveredDevices[senderIp] = label
+                            log("📡 SSDP: $label at $senderIp")
+                        }
+
+
+                    } catch (_: SocketTimeoutException) {
+                        break
+                    }
+                }
+
+                socket.close()
+
+                if (discoveredDevices.isEmpty()) {
+                    log("⚠️ No SSDP devices responded.")
+                }
+
+            } catch (e: Exception) {
+                log("SSDP error: ${e.message}")
+            }
+        }
+    }
+
 
     private fun fetchDeviceInfo(ip: String) {
         val url = "http://$ip:8060/query/device-info"
@@ -103,40 +197,80 @@ class MainActivity : AppCompatActivity() {
         return "192.168.0" // fallback
     }
 
-    private fun scanForRokus() {
+    private fun scanForSmartTVs() {
         val subnet = getLocalSubnet()
-        val foundDevices = mutableMapOf<String, String>() // IP → Name
+        discoveredDevices.clear()
 
         log("Scanning $subnet.0/24...")
 
         CoroutineScope(Dispatchers.IO).launch {
-            val jobs = (1..254).map { i ->
-                async {
-                    val ip = "$subnet.$i"
-                    try {
-                        val url = URL("http://$ip:8060/query/device-info")
-                        val conn = url.openConnection() as HttpURLConnection
-                        conn.connectTimeout = 300
-                        conn.readTimeout = 300
-                        conn.requestMethod = "GET"
-                        if (conn.responseCode == 200) {
-                            val xml = conn.inputStream.bufferedReader().use { it.readText() }
-                            val name = Regex("<user-device-name>(.*?)</user-device-name>")
-                                .find(xml)?.groupValues?.get(1) ?: "Roku"
-                            foundDevices[ip] = name
-                            log("Roku found: $name ($ip)")
+            val jobs = (1..254).flatMap { i ->
+                val ip = "$subnet.$i"
+                listOf(
+                    async {
+                        // Roku: port 8060
+                        try {
+                            val url = URL("http://$ip:8060/query/device-info")
+                            val conn = url.openConnection() as HttpURLConnection
+                            conn.connectTimeout = 300
+                            conn.readTimeout = 300
+                            conn.requestMethod = "GET"
+                            if (conn.responseCode == 200) {
+                                val xml = conn.inputStream.bufferedReader().use { it.readText() }
+                                val name = Regex("<user-device-name>(.*?)</user-device-name>")
+                                    .find(xml)?.groupValues?.get(1) ?: "Roku"
+                                discoveredDevices[ip] = "Roku: $name"
+                                log("📺 Roku found: $name ($ip)")
+
+                            }
+                            conn.disconnect()
+                        } catch (_: Exception) {
                         }
-                        conn.disconnect()
-                    } catch (_: Exception) { }
-                }
+                    },
+                    async {
+                        // Samsung: port 8001
+                        try {
+                            val url = URL("http://$ip:8001/")
+                            val conn = url.openConnection() as HttpURLConnection
+                            conn.connectTimeout = 300
+                            conn.readTimeout = 300
+                            conn.requestMethod = "GET"
+                            val serverHeader = conn.getHeaderField("Server")?.lowercase() ?: ""
+                            if ("samsung" in serverHeader || conn.responseCode == 200) {
+                                discoveredDevices[ip] = "Samsung TV"
+                                log("📺 Samsung TV detected at $ip")
+                            }
+                            conn.disconnect()
+                        } catch (_: Exception) {
+                        }
+                    },
+                    async {
+                        // LG: port 3000
+                        try {
+                            val url = URL("http://$ip:3000/")
+                            val conn = url.openConnection() as HttpURLConnection
+                            conn.connectTimeout = 300
+                            conn.readTimeout = 300
+                            conn.requestMethod = "GET"
+                            val body = conn.inputStream.bufferedReader().readText().lowercase()
+                            if ("webos" in body || conn.responseCode == 200) {
+                                discoveredDevices[ip] = "LG WebOS TV"
+                                log("📺 LG WebOS TV detected at $ip")
+                            }
+                            conn.disconnect()
+                        } catch (_: Exception) {
+                        }
+                    }
+                )
             }
+
             jobs.awaitAll()
 
             withContext(Dispatchers.Main) {
-                if (foundDevices.isEmpty()) {
-                    log("No Roku devices found.")
+                if (discoveredDevices.isEmpty()) {
+                    log("No smart TVs found.")
                 } else {
-                    val deviceList = foundDevices.map { (ip, name) -> "$name ($ip)" }
+                    val deviceList = discoveredDevices.map { (ip, name) -> "$name ($ip)" }
                     val multipleDevices = deviceList.size > 1
 
                     val displayList = mutableListOf("All Devices (broadcast)")
@@ -148,40 +282,66 @@ class MainActivity : AppCompatActivity() {
                         displayList
                     ) {
                         override fun isEnabled(position: Int): Boolean {
-                            return !(displayList[position].startsWith("All Devices") && !multipleDevices)
+                            val label = displayList[position]
+                            return when {
+                                label.startsWith("All Devices") && !multipleDevices -> false
+                                !label.contains("Roku") -> false // ❌ Disable non-Roku
+                                else -> true
+                            }
                         }
 
-                        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+
+                        override fun getView(
+                            position: Int,
+                            convertView: View?,
+                            parent: ViewGroup
+                        ): View {
                             val view = super.getView(position, convertView, parent) as TextView
-                            val isDisabled = displayList[position].startsWith("All Devices") && !multipleDevices
+                            val label = displayList[position]
+
+                            val isDisabled =
+                                !label.contains("Roku") || (label.startsWith("All Devices") && !multipleDevices)
+
                             view.setTextColor(if (isDisabled) Color.GRAY else Color.parseColor("#00FF00"))
                             view.setBackgroundColor(Color.BLACK)
                             view.textAlignment = View.TEXT_ALIGNMENT_CENTER
                             view.typeface = Typeface.MONOSPACE
+
                             return view
                         }
 
-                        override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
-                            val view = super.getDropDownView(position, convertView, parent) as TextView
-                            val isDisabled = displayList[position].startsWith("All Devices") && !multipleDevices
+
+                        override fun getDropDownView(
+                            position: Int,
+                            convertView: View?,
+                            parent: ViewGroup
+                        ): View {
+                            val view =
+                                super.getDropDownView(position, convertView, parent) as TextView
+                            val label = displayList[position]
+
+                            val isDisabled =
+                                !label.contains("Roku") || (label.startsWith("All Devices") && !multipleDevices)
+
                             view.setTextColor(if (isDisabled) Color.GRAY else Color.parseColor("#00FF00"))
                             view.setBackgroundColor(Color.parseColor("#222222"))
                             view.textAlignment = View.TEXT_ALIGNMENT_CENTER
                             view.typeface = Typeface.MONOSPACE
+
                             return view
                         }
+
                     }
 
-
                     deviceSpinner.adapter = adapter
-                    deviceSpinner.setSelection(0)
                     deviceSpinner.setSelection(if (deviceList.size == 1) 1 else 0)
 
-                    // ✅ Save first IP (skip "All Devices")
-                    val firstRealDevice = foundDevices.keys.firstOrNull()
-                    if (firstRealDevice != null) {
+                    // ✅ Save first Roku IP only
+                    val firstRoku =
+                        discoveredDevices.entries.firstOrNull { it.value.startsWith("Roku") }?.key
+                    if (firstRoku != null) {
                         val sharedPref = getSharedPreferences("roku", MODE_PRIVATE)
-                        sharedPref.edit().putString("lastIp", firstRealDevice).apply()
+                        sharedPref.edit().putString("lastIp", firstRoku).apply()
                     }
                 }
             }
@@ -191,24 +351,24 @@ class MainActivity : AppCompatActivity() {
     private fun startSpamming() {
         val selectedItem = deviceSpinner.selectedItem?.toString()
 
-        if (selectedItem == null || selectedItem.isBlank()) {
-            Toast.makeText(this, "Please select a Roku device or enter an IP", Toast.LENGTH_SHORT).show()
+        if (selectedItem != null && !selectedItem.contains("Roku")) {
+            Toast.makeText(this, "Only Roku devices can be attacked (for now)", Toast.LENGTH_SHORT).show()
             return
         }
 
         val targetIps: List<String> =
-            if (selectedItem.startsWith("All Devices")) {
+            if (selectedItem?.startsWith("All Devices") == true) {
                 (0 until deviceSpinner.adapter.count)
                     .map { deviceSpinner.adapter.getItem(it).toString() }
                     .filterNot { it.startsWith("All Devices") }
+                    .filter { it.contains("Roku") } // ✅ only Roku devices
                     .mapNotNull { Regex("\\((.*?)\\)").find(it)?.groupValues?.get(1) }
             } else {
                 listOf(
-                    Regex("\\((.*?)\\)").find(selectedItem)?.groupValues?.get(1)
+                    Regex("\\((.*?)\\)").find(selectedItem ?: "")?.groupValues?.get(1)
                         ?: ipField.text.toString()
                 )
             }
-
 
         // ✅ Now that targetIp exists, fetch the device info
         if (targetIps.isEmpty()) {
@@ -218,23 +378,19 @@ class MainActivity : AppCompatActivity() {
 
         fetchDeviceInfo(targetIps.first())
 
-
         val command = commandSpinner.selectedItem.toString()
         val delay = delayInput.text.toString().toLongOrNull() ?: 300L
+
         runOnUiThread {
             val selectedDisplay = deviceSpinner.selectedItem?.toString() ?: ipField.text.toString()
-            val deviceName =
-                Regex("^(.*?) \\(").find(selectedDisplay)?.groupValues?.get(1) ?: "Roku"
-
+            val deviceName = Regex("^(.*?) \\(").find(selectedDisplay)?.groupValues?.get(1) ?: "Roku"
             val text = if (command == "Chaos") {
                 "Obliterating: $deviceName"
             } else {
                 "Pwning: $deviceName"
             }
-
             findViewById<TextView>(R.id.deviceInfoText).text = text
         }
-
 
         spamJob = CoroutineScope(Dispatchers.IO).launch {
             runOnUiThread {
@@ -242,7 +398,7 @@ class MainActivity : AppCompatActivity() {
                 startButton.startAnimation(anim)
                 startButton.text = "⚠️ CHAOS MODE ACTIVE"
                 val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
-                val pattern = longArrayOf(0, 100, 100) // wait, vibrate, pause
+                val pattern = longArrayOf(0, 100, 100)
                 val effect = VibrationEffect.createWaveform(pattern, 0)
                 vibrator.vibrate(effect)
             }
@@ -286,51 +442,44 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-    }  // ← ✅ CLOSE startSpamming() here
+    }
 
-        private fun stopSpamming() {
-            runOnUiThread {
-                startButton.clearAnimation()
-                startButton.text = "START PWNING"
-                findViewById<TextView>(R.id.deviceInfoText).text = "Idle"
-                val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
-                vibrator.cancel()
-            }
-
-
-            spamJob?.cancel()
-            log("Stopped.")
+    private fun stopSpamming() {
+        runOnUiThread {
+            startButton.clearAnimation()
+            startButton.text = "START PWNING"
+            findViewById<TextView>(R.id.deviceInfoText).text = "Idle"
+            val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+            vibrator.cancel()
         }
 
-        private fun log(message: String) {
-            runOnUiThread {
-                val coloredText = SpannableString("$message\n")
-                when {
-                    message.contains("Error", ignoreCase = true) -> {
-                        coloredText.setSpan(ForegroundColorSpan(Color.RED), 0, message.length, 0)
-                    }
+        spamJob?.cancel()
+        log("Stopped.")
+    }
 
-                    message.contains(
-                        "Sent",
-                        ignoreCase = true
-                    ) || message.contains("Roku found") -> {
-                        coloredText.setSpan(ForegroundColorSpan(Color.GREEN), 0, message.length, 0)
-                    }
-
-                    message.contains("No Roku") || message.contains(
-                        "Stopped",
-                        ignoreCase = true
-                    ) -> {
-                        coloredText.setSpan(ForegroundColorSpan(Color.YELLOW), 0, message.length, 0)
-                    }
+    private fun log(message: String) {
+        runOnUiThread {
+            val coloredText = SpannableString("$message\n")
+            when {
+                message.contains("Error", ignoreCase = true) -> {
+                    coloredText.setSpan(ForegroundColorSpan(Color.RED), 0, message.length, 0)
                 }
 
-                logOutput.append(coloredText)
-
-                val scrollView = findViewById<ScrollView>(R.id.logScroll)
-                scrollView.post {
-                    scrollView.fullScroll(View.FOCUS_DOWN)
+                message.contains("Sent", ignoreCase = true) || message.contains("Roku found") -> {
+                    coloredText.setSpan(ForegroundColorSpan(Color.GREEN), 0, message.length, 0)
                 }
+
+                message.contains("No Roku", ignoreCase = true) || message.contains("Stopped", ignoreCase = true) -> {
+                    coloredText.setSpan(ForegroundColorSpan(Color.YELLOW), 0, message.length, 0)
+                }
+            }
+
+            logOutput.append(coloredText)
+
+            val scrollView = findViewById<ScrollView>(R.id.logScroll)
+            scrollView.post {
+                scrollView.fullScroll(View.FOCUS_DOWN)
             }
         }
     }
+}
