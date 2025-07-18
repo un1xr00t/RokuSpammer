@@ -353,6 +353,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun safePost(urlStr: String, label: String = "") {
+        try {
+            URL(urlStr).apply {
+                (openConnection() as HttpURLConnection).run {
+                    requestMethod = "POST"
+                    doOutput = true
+                    connectTimeout = 1000
+                    readTimeout = 3000
+                    OutputStreamWriter(outputStream).use { it.write("") }
+                    responseCode // ⛔ this might timeout — that’s okay
+                    disconnect()
+                }
+            }
+            if (label.isNotBlank()) log("✅ $label")
+        } catch (e: SocketTimeoutException) {
+            log("⚠️ $label — Roku did not respond, but command likely succeeded")
+        } catch (e: Exception) {
+            log("❌ $label failed: ${e.message}")
+        }
+    }
+
+
     private fun startSpamming() {
         val selectedItem = deviceSpinner.selectedItem?.toString()
 
@@ -366,7 +388,7 @@ class MainActivity : AppCompatActivity() {
                 (0 until deviceSpinner.adapter.count)
                     .map { deviceSpinner.adapter.getItem(it).toString() }
                     .filterNot { it.startsWith("All Devices") }
-                    .filter { it.contains("Roku") } // ✅ only Roku devices
+                    .filter { it.contains("Roku") }
                     .mapNotNull { Regex("\\((.*?)\\)").find(it)?.groupValues?.get(1) }
             } else {
                 listOf(
@@ -375,7 +397,6 @@ class MainActivity : AppCompatActivity() {
                 )
             }
 
-        // ✅ Now that targetIp exists, fetch the device info
         if (targetIps.isEmpty()) {
             Toast.makeText(this, "Please enter or select a Roku IP", Toast.LENGTH_SHORT).show()
             return
@@ -399,92 +420,84 @@ class MainActivity : AppCompatActivity() {
 
         spamJob = CoroutineScope(Dispatchers.IO).launch {
             runOnUiThread {
-                val anim = AnimationUtils.loadAnimation(this@MainActivity, R.anim.glitch)
-                startButton.startAnimation(anim)
-                startButton.text = "⚠️ CHAOS MODE ACTIVE"
-                val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
-                val pattern = longArrayOf(0, 100, 100)
-                val effect = VibrationEffect.createWaveform(pattern, 0)
-                vibrator.vibrate(effect)
+                if (command == "Chaos") {
+                    val anim = AnimationUtils.loadAnimation(this@MainActivity, R.anim.glitch)
+                    startButton.startAnimation(anim)
+                    startButton.text = "⚠️ CHAOS MODE ACTIVE"
+                    val vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+                    val pattern = longArrayOf(0, 100, 100)
+                    val effect = VibrationEffect.createWaveform(pattern, 0)
+                    vibrator.vibrate(effect)
+                } else {
+                    startButton.clearAnimation()
+                }
             }
 
-            while (isActive) {
-                try {
+            // ⚡ One-shot mode: Thunder or Rick Roll — EXIT EARLY
+            if (command == "⚡ Thunder Mode" || command == "🎣 Rick Roll Mode") {
+                val videoId = if (command == "⚡ Thunder Mode") "v2AC41dglnM" else "dQw4w9WgXcQ"
+
+                for (ip in targetIps) {
+                    ensureActive()
+
+                    // Step 1: Launch the video directly
+                    safePost("http://$ip:8060/launch/837?contentID=$videoId", "🎬 Launching $videoId on $ip")
+
+                    // Step 2: Wait for YouTube to fully load and show profile selection
+                    delay(15000)
+                    ensureActive()
+
+                    // Step 3: Confirm profile with OK
+                    safePost("http://$ip:8060/keypress/Select", "🕹️ Pressed Select to confirm profile")
+
+                    // Step 4: Wait for video to start
+                    delay(3000)
+                    ensureActive()
+
+                    // Step 5: Crank that volume up (20 times)
+                    repeat(20) {
+                        ensureActive()
+                        safePost("http://$ip:8060/keypress/VolumeUp", "🔊 VolumeUp to $ip")
+                        delay(500)
+                    }
+                }
+
+                stopSpamming()
+                return@launch
+
+
+
+            }
+
+            // 🌀 Loop only for Chaos or keypress modes
+            try {
+                while (isActive) {
                     when (command) {
                         "Chaos" -> {
                             for (cmd in rokuCommands.drop(1)) {
+                                ensureActive()
                                 for (ip in targetIps) {
-                                    val url = URL("http://$ip:8060/keypress/$cmd")
-                                    val conn = url.openConnection() as HttpURLConnection
-                                    conn.requestMethod = "POST"
-                                    conn.connectTimeout = 800
-                                    conn.readTimeout = 800
-                                    conn.doOutput = true
-                                    OutputStreamWriter(conn.outputStream).use { it.write("") }
-                                    conn.responseCode
-                                    conn.disconnect()
-                                    log("Chaos: Sent $cmd to $ip")
+                                    safePost("http://$ip:8060/keypress/$cmd", "Chaos: Sent $cmd to $ip")
                                 }
                                 delay(150)
                             }
                         }
 
-                        "⚡ Thunder Mode" -> {
-                            for (ip in targetIps) {
-                                val url = URL("http://$ip:8060/launch/837?contentID=v2AC41dglnM")
-                                val conn = url.openConnection() as HttpURLConnection
-                                conn.requestMethod = "POST"
-                                conn.connectTimeout = 1000
-                                conn.readTimeout = 1000
-                                conn.doOutput = true
-                                OutputStreamWriter(conn.outputStream).use { it.write("") }
-                                conn.responseCode
-                                conn.disconnect()
-                                log("⚡ Thunder Mode: Thunderstruck sent to $ip")
-                            }
-                            delay(delay)
-                        }
-
-                        "🎣 Rick Roll Mode" -> {
-                            for (ip in targetIps) {
-                                val url = URL("http://$ip:8060/launch/837?contentID=dQw4w9WgXcQ")
-                                val conn = url.openConnection() as HttpURLConnection
-                                conn.requestMethod = "POST"
-                                conn.connectTimeout = 1000
-                                conn.readTimeout = 1000
-                                conn.doOutput = true
-                                OutputStreamWriter(conn.outputStream).use { it.write("") }
-                                conn.responseCode
-                                conn.disconnect()
-                                log("🎣 Rick Roll Mode: Deployed to $ip")
-                            }
-                            delay(delay)
-                        }
-
                         else -> {
                             for (ip in targetIps) {
-                                val url = URL("http://$ip:8060/keypress/$command")
-                                val conn = url.openConnection() as HttpURLConnection
-                                conn.requestMethod = "POST"
-                                conn.connectTimeout = 500
-                                conn.readTimeout = 500
-                                conn.doOutput = true
-                                OutputStreamWriter(conn.outputStream).use { it.write("") }
-                                conn.responseCode
-                                conn.disconnect()
-                                log("Sent $command to $ip")
+                                ensureActive()
+                                safePost("http://$ip:8060/keypress/$command", "Sent $command to $ip")
                             }
                             delay(delay)
                         }
                     }
-                } catch (e: Exception) {
-                    log("Error sending: ${e.message}")
-                    delay(500)
                 }
-            }
-
+            } catch (_: CancellationException) {}
         }
     }
+
+
+
 
     private fun stopSpamming() {
         runOnUiThread {
@@ -496,7 +509,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         spamJob?.cancel()
-        log("Stopped.")
+        log("🛑 Spamming cancelled.")
     }
 
     private fun log(message: String) {
